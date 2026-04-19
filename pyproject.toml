@@ -1,0 +1,19 @@
+[project]
+name = "hypatia-lit"
+version = "0.1.0"
+description = "Visual AI conversation based on local Hypatia memory"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "streamlit>=1.45",
+    "anthropic>=0.52",
+    "pydantic>=2.0",
+    "pygments>=2.0",
+    "python-dotenv>=1.0",
+    "pyecharts>=2.1.0",
+    "httpx>=0.28.1",
+]
+
+[project.scripts]
+hypatia-lit = "app:main"
+hypatia-lit-desktop = "run_desktop:main"
