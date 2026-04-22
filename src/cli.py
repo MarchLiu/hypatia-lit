@@ -27,17 +27,44 @@ def _run(args: list[str], timeout: int = _DEFAULT_TIMEOUT) -> subprocess.Complet
     return result
 
 
-def list_shelves() -> list[ShelfInfo]:
-    """List connected shelves. Returns list of ShelfInfo."""
+def list_shelves(*, persistent_only: bool = False) -> list[ShelfInfo]:
+    """List connected shelves.
+
+    Args:
+        persistent_only: If True, only return shelves whose path is under
+            the user's home directory (excluding temp directories like
+            /var/folders/, /tmp/, etc.).
+    """
+    import os
+    import tempfile
+
     result = _run(["list"])
     shelves: list[ShelfInfo] = []
+    tmp_dir = tempfile.gettempdir()
+    home_dir = os.path.expanduser("~")
+
     for line in result.stdout.strip().splitlines():
         line = line.strip()
-        if not line or line.startswith("name"):
+        if not line:
             continue
         parts = line.split()
-        if len(parts) >= 2:
-            shelves.append(ShelfInfo(name=parts[0], path=parts[1]))
+        if len(parts) < 2:
+            continue
+        name = parts[0]
+        path = parts[1]
+
+        if persistent_only:
+            # Skip temp directory shelves (/var/folders/, /tmp/, etc.)
+            if path.startswith(tmp_dir):
+                continue
+            # Only keep shelves under the user's home directory
+            if not path.startswith(home_dir):
+                continue
+            # Skip shelves whose directory no longer exists
+            if not os.path.isdir(path):
+                continue
+
+        shelves.append(ShelfInfo(name=name, path=path))
     return shelves
 
 

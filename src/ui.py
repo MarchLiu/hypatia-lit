@@ -35,6 +35,19 @@ def init_session_state() -> None:
             st.session_state[key] = value
 
 
+def _get_persistent_shelves() -> list[str]:
+    """Get list of persistent shelf names from hypatia, cached in session state."""
+    if "_cached_shelves" not in st.session_state:
+        try:
+            from src.cli import list_shelves
+
+            shelves = list_shelves(persistent_only=True)
+            st.session_state["_cached_shelves"] = [s.name for s in shelves]
+        except Exception:
+            st.session_state["_cached_shelves"] = ["default"]
+    return st.session_state["_cached_shelves"]
+
+
 def render_sidebar() -> None:
     """Render the sidebar with configuration controls."""
     with st.sidebar:
@@ -43,14 +56,18 @@ def render_sidebar() -> None:
 
         st.divider()
 
-        # Shelf selector
+        # Shelf selector — dynamically loaded from hypatia
         st.subheader("Shelf")
+        shelf_names = _get_persistent_shelves()
+        current = st.session_state.active_shelf
+        # If current shelf is not in the list, fall back to first available
+        if current not in shelf_names and shelf_names:
+            current = shelf_names[0]
+            st.session_state.active_shelf = current
         shelf = st.selectbox(
             "Active Shelf",
-            ["default", "euclid-fitzpatrick", "euclid-heath"],
-            index=["default", "euclid-fitzpatrick", "euclid-heath"].index(
-                st.session_state.active_shelf
-            ),
+            shelf_names,
+            index=shelf_names.index(current) if current in shelf_names else 0,
             key="shelf_selector",
         )
         st.session_state.active_shelf = shelf

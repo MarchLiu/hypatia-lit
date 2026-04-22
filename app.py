@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from src.agent import run_agent
 from src.models import GraphData
-from src.prompts import SYSTEM_PROMPT, TOOLS
+from src.prompts import SYSTEM_PROMPT, build_tools
 from src.ui import (
     get_model_config,
     init_session_state,
@@ -24,6 +24,12 @@ from src.ui import (
 )
 
 load_dotenv()
+
+
+def _get_persistent_shelves_from_session() -> list[str]:
+    """Get cached persistent shelf names from session state."""
+    return st.session_state.get("_cached_shelves", ["default"])
+
 
 # ── Page Config ──────────────────────────────────────────────────────────────
 
@@ -70,8 +76,11 @@ if prompt := st.chat_input("Ask about your Hypatia knowledge graph..."):
         st.error("Model not configured. Set ANTHROPIC_MODEL env var or in sidebar.")
         st.stop()
 
-    # Build system prompt with current shelf
-    system_prompt = SYSTEM_PROMPT.format(shelf=st.session_state.active_shelf)
+    # Build system prompt and tools with dynamic shelf list
+    shelf_names = _get_persistent_shelves_from_session()
+    shelves_str = ", ".join(shelf_names)
+    system_prompt = SYSTEM_PROMPT.format(shelf=st.session_state.active_shelf, shelves=shelves_str)
+    tools = build_tools(shelf_names)
 
     # Run agent in a chat message block
     with st.chat_message("assistant"):
@@ -82,7 +91,7 @@ if prompt := st.chat_input("Ask about your Hypatia knowledge graph..."):
         agent_gen = run_agent(
             messages=st.session_state.messages,
             system_prompt=system_prompt,
-            tools=TOOLS,
+            tools=tools,
             model=model,
             shelf=st.session_state.active_shelf,
             base_url=base_url,

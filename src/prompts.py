@@ -18,7 +18,7 @@ You have 4 tools:
 ## Active Shelf
 
 The user has selected a shelf: **{shelf}**.
-Available shelves: default, euclid-fitzpatrick, euclid-heath.
+Available shelves: {shelves}.
 
 ## JSE Query Language
 
@@ -87,143 +87,149 @@ When a knowledge entry has figures, always call `archive_get` for each figure so
 - For large result sets, summarize the key findings rather than listing everything
 """
 
-TOOLS = [
-    {
-        "name": "hypatia_query",
-        "description": (
-            "Execute a JSE query against a Hypatia shelf. "
-            "Returns a JSON array of matching knowledge entries or statement triples."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "jse": {
-                    "type": "string",
-                    "description": (
-                        "JSE query as a JSON string. "
-                        'Examples: \'["$knowledge"]\' or \'["$statement", ["$triple", "Alice", "$*", "$*"]]\''
-                    ),
+def build_tools(shelf_names: list[str]) -> list[dict]:
+    """Build tool definitions with dynamic shelf list."""
+    return [
+        {
+            "name": "hypatia_query",
+            "description": (
+                "Execute a JSE query against a Hypatia shelf. "
+                "Returns a JSON array of matching knowledge entries or statement triples."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "jse": {
+                        "type": "string",
+                        "description": (
+                            "JSE query as a JSON string. "
+                            'Examples: \'["$knowledge"]\' or \'["$statement", ["$triple", "Alice", "$*", "$*"]]\''
+                        ),
+                    },
+                    "shelf": {
+                        "type": "string",
+                        "description": "Shelf name",
+                        "enum": shelf_names,
+                    },
                 },
-                "shelf": {
-                    "type": "string",
-                    "description": "Shelf name",
-                    "enum": ["default", "euclid-fitzpatrick", "euclid-heath"],
-                },
+                "required": ["jse"],
             },
-            "required": ["jse"],
         },
-    },
-    {
-        "name": "hypatia_search",
-        "description": (
-            "Full-text search across knowledge and statements in a Hypatia shelf. "
-            "Use for broad or ambiguous queries."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search terms"},
-                "shelf": {
-                    "type": "string",
-                    "enum": ["default", "euclid-fitzpatrick", "euclid-heath"],
+        {
+            "name": "hypatia_search",
+            "description": (
+                "Full-text search across knowledge and statements in a Hypatia shelf. "
+                "Use for broad or ambiguous queries."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search terms"},
+                    "shelf": {
+                        "type": "string",
+                        "enum": shelf_names,
+                    },
+                    "catalog": {
+                        "type": "string",
+                        "description": "Filter by catalog",
+                        "enum": ["knowledge", "statement"],
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results (default 20)",
+                        "default": 20,
+                    },
                 },
-                "catalog": {
-                    "type": "string",
-                    "description": "Filter by catalog",
-                    "enum": ["knowledge", "statement"],
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Max results (default 20)",
-                    "default": 20,
-                },
+                "required": ["query"],
             },
-            "required": ["query"],
         },
-    },
-    {
-        "name": "hypatia_knowledge_get",
-        "description": "Get a single knowledge entry by its exact name.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Exact knowledge entry name"},
-                "shelf": {
-                    "type": "string",
-                    "enum": ["default", "euclid-fitzpatrick", "euclid-heath"],
+        {
+            "name": "hypatia_knowledge_get",
+            "description": "Get a single knowledge entry by its exact name.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Exact knowledge entry name"},
+                    "shelf": {
+                        "type": "string",
+                        "enum": shelf_names,
+                    },
                 },
+                "required": ["name"],
             },
-            "required": ["name"],
         },
-    },
-    {
-        "name": "visualize_graph",
-        "description": (
-            "Request the UI to render an interactive knowledge graph. "
-            "Call this when you have retrieved statement triples or related knowledge entries."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "nodes": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": {"type": "string"},
-                            "label": {"type": "string"},
-                            "type": {
-                                "type": "string",
-                                "enum": ["knowledge", "entity", "search_result"],
+        {
+            "name": "visualize_graph",
+            "description": (
+                "Request the UI to render an interactive knowledge graph. "
+                "Call this when you have retrieved statement triples or related knowledge entries."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "nodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "label": {"type": "string"},
+                                "type": {
+                                    "type": "string",
+                                    "enum": ["knowledge", "entity", "search_result"],
+                                },
                             },
+                            "required": ["id", "label"],
                         },
-                        "required": ["id", "label"],
+                        "description": "List of graph nodes",
                     },
-                    "description": "List of graph nodes",
-                },
-                "edges": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "source": {"type": "string"},
-                            "target": {"type": "string"},
-                            "label": {"type": "string"},
+                    "edges": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "source": {"type": "string"},
+                                "target": {"type": "string"},
+                                "label": {"type": "string"},
+                            },
+                            "required": ["source", "target", "label"],
                         },
-                        "required": ["source", "target", "label"],
+                        "description": "List of graph edges (relationships)",
                     },
-                    "description": "List of graph edges (relationships)",
+                    "layout": {
+                        "type": "string",
+                        "enum": ["force", "tree", "radial", "layered"],
+                        "default": "force",
+                        "description": "Graph layout algorithm",
+                    },
                 },
-                "layout": {
-                    "type": "string",
-                    "enum": ["force", "tree", "radial", "layered"],
-                    "default": "force",
-                    "description": "Graph layout algorithm",
-                },
+                "required": ["nodes", "edges"],
             },
-            "required": ["nodes", "edges"],
         },
-    },
-    {
-        "name": "archive_get",
-        "description": (
-            "Retrieve an archive file (image, PDF, etc.) from a Hypatia shelf. "
-            "The file will be displayed inline in the conversation. "
-            "Use this when knowledge entries reference figures or when the user asks to view images."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Archive path, e.g. 'archive://euclid/fig1.png'",
+        {
+            "name": "archive_get",
+            "description": (
+                "Retrieve an archive file (image, PDF, etc.) from a Hypatia shelf. "
+                "The file will be displayed inline in the conversation. "
+                "Use this when knowledge entries reference figures or when the user asks to view images."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Archive path, e.g. 'archive://euclid/fig1.png'",
+                    },
+                    "shelf": {
+                        "type": "string",
+                        "enum": shelf_names,
+                    },
                 },
-                "shelf": {
-                    "type": "string",
-                    "enum": ["default", "euclid-fitzpatrick", "euclid-heath"],
-                },
+                "required": ["path"],
             },
-            "required": ["path"],
         },
-    },
-]
+    ]
+
+
+# Keep TOOLS as a module-level constant for backward compat (uses default shelf only)
+TOOLS = build_tools(["default"])
