@@ -11,8 +11,8 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from src.agent import run_agent
-from src.models import GraphData
-from src.prompts import SYSTEM_PROMPT, build_tools
+from src.models import GraphData, ToolCallRecord
+from src.prompts import SYSTEM_PROMPT
 from src.ui import (
     get_model_config,
     init_session_state,
@@ -20,10 +20,12 @@ from src.ui import (
     render_graph_area,
     render_sidebar,
     render_tool_calls,
-    stream_and_collect,
 )
 
-load_dotenv()
+# Load .env from the project directory only (not from parent dirs)
+_project_dir = os.path.dirname(os.path.abspath(__file__))
+_env_file = os.path.join(_project_dir, ".env")
+load_dotenv(_env_file, override=False)
 
 
 def _get_persistent_shelves_from_session() -> list[str]:
@@ -76,11 +78,15 @@ if prompt := st.chat_input("Ask about your Hypatia knowledge graph..."):
         st.error("Model not configured. Set ANTHROPIC_MODEL env var or in sidebar.")
         st.stop()
 
-    # Build system prompt and tools with dynamic shelf list
+    # Debug: show effective API config (redact keys)
+    _key_hint = (_api_key[:8] + "...") if _api_key else "(none)"
+    _token_hint = (_auth_token[:8] + "...") if _auth_token else "(none)"
+    st.caption(f"API: `{base_url or 'default'}` | Model: `{model}` | key: `{_key_hint}` | token: `{_token_hint}`")
+
+    # Build system prompt with dynamic shelf list
     shelf_names = _get_persistent_shelves_from_session()
     shelves_str = ", ".join(shelf_names)
     system_prompt = SYSTEM_PROMPT.format(shelf=st.session_state.active_shelf, shelves=shelves_str)
-    tools = build_tools(shelf_names)
 
     # Run agent in a chat message block
     with st.chat_message("assistant"):
@@ -91,7 +97,6 @@ if prompt := st.chat_input("Ask about your Hypatia knowledge graph..."):
         agent_gen = run_agent(
             messages=st.session_state.messages,
             system_prompt=system_prompt,
-            tools=tools,
             model=model,
             shelf=st.session_state.active_shelf,
             base_url=base_url,
@@ -110,6 +115,8 @@ if prompt := st.chat_input("Ask about your Hypatia knowledge graph..."):
                 response_placeholder.markdown("".join(full_text) + "▌")
             elif isinstance(item, GraphData):
                 graphs.append(item)
+            elif isinstance(item, ToolCallRecord):
+                tool_records.append(item)
             elif isinstance(item, list):
                 # Image paths from archive_get
                 all_image_paths.extend(item)

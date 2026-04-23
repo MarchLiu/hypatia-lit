@@ -12,8 +12,6 @@ import streamlit as st
 if TYPE_CHECKING:
     from src.models import GraphData
 
-_ECHARTS_CDN = "https://assets.pyecharts.org/assets/v6/echarts.min.js"
-
 _HTML_TEMPLATE = """\
 <!DOCTYPE html>
 <html lang="en">
@@ -215,32 +213,22 @@ def _collect_images_html(image_store: dict[str, str], msg_idx: int) -> str:
 
 
 def _build_graph_html(graph: GraphData, layout: str) -> str:
-    """Build the ECharts graph HTML for embedding in the export."""
+    """Build the Canvas graph HTML for embedding in the export."""
     try:
-        from src.graph import build_graph_chart, _inline_echarts_js
+        from src.graph import build_graph_html as do_build
 
-        chart = build_graph_chart(graph, layout, embed_js=False)
-        html_content = chart.render_embed()
-        # Inline the ECharts JS to make the export self-contained
-        return _inline_echarts_js(html_content)
+        return do_build(graph, layout)
     except Exception:
         return _build_graph_html_fallback(graph, layout)
 
 
 def _build_graph_html_fallback(graph: GraphData, layout: str) -> str:
-    """Build graph HTML with CDN script tag when embed_js fails."""
-    try:
-        from src.graph import build_graph_chart
-
-        chart = build_graph_chart(graph, layout, embed_js=False)
-        return chart.render_embed()
-    except Exception:
-        # Last resort: text description
-        lines = ["<p><strong>Graph Nodes:</strong></p><ul>"]
-        for node in graph.nodes[:20]:
-            lines.append(f"<li>{html.escape(node.label)} ({node.node_type})</li>")
-        lines.append("</ul>")
-        return "\n".join(lines)
+    """Build graph HTML fallback: text description when Canvas generation fails."""
+    lines = ["<p><strong>Graph Nodes:</strong></p><ul>"]
+    for node in graph.nodes[:20]:
+        lines.append(f"<li>{html.escape(node.label)} ({node.node_type})</li>")
+    lines.append("</ul>")
+    return "\n".join(lines)
 
 
 def _build_mermaid(graph: GraphData) -> str:
